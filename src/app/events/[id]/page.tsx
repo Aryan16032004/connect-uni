@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Calendar, MapPin, Users, Clock, ArrowLeft, Edit, Trash2, Share2, User } from "lucide-react";
 import Link from "next/link";
+import ImageUpload from "@/components/ImageUpload";
 
 interface Event {
     _id: string;
@@ -240,15 +241,12 @@ export default function EventDetailPage() {
                                     />
                                 </div>
 
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-foreground">Image URL</label>
-                                    <input
-                                        type="url"
-                                        value={formData.image}
-                                        onChange={e => setFormData({ ...formData, image: e.target.value })}
-                                        className="w-full bg-input border border-border rounded-lg p-2.5 text-foreground focus:border-primary outline-none"
-                                    />
-                                </div>
+                                <ImageUpload
+                                    value={formData.image}
+                                    onChange={(url) => setFormData({ ...formData, image: url })}
+                                    label="Cover Image"
+                                    folder="events"
+                                />
 
                                 <div className="flex gap-2">
                                     <button

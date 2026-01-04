@@ -5,12 +5,13 @@ export async function POST(req: Request) {
     try {
         const formData = await req.formData();
         const file = formData.get("file") as File;
+        const folder = (formData.get("folder") as string) || "uploads";
 
         if (!file) {
             return NextResponse.json({ message: "No file provided" }, { status: 400 });
         }
 
-        const url = await uploadImage(file, "chat-attachments");
+        const url = await uploadImage(file, folder);
 
         return NextResponse.json({ url }, { status: 200 });
 

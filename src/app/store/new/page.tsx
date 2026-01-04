@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ShoppingBag, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import ImageUpload from "@/components/ImageUpload";
 
 export default function AddProductPage() {
     const router = useRouter();
@@ -118,16 +119,12 @@ export default function AddProductPage() {
                         />
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Image URL (Optional)</label>
-                        <input
-                            type="url"
-                            value={formData.image}
-                            onChange={e => setFormData({ ...formData, image: e.target.value })}
-                            className="w-full bg-input border border-border rounded-lg p-2.5 text-foreground focus:border-primary outline-none placeholder:text-muted-foreground"
-                            placeholder="https://example.com/image.jpg"
-                        />
-                    </div>
+                    <ImageUpload
+                        value={formData.image}
+                        onChange={(url) => setFormData({ ...formData, image: url })}
+                        label="Product Image (Optional)"
+                        folder="store-products"
+                    />
 
                     <button
                         type="submit"
