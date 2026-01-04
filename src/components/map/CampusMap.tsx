@@ -222,6 +222,9 @@ export default function CampusMap() {
                 src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=visualization`}
                 strategy="afterInteractive"
                 onReady={() => setScriptLoaded(true)}
+                onError={() => {
+                    console.warn("Google Maps API failed to load. Please enable billing in Google Cloud Console.");
+                }}
             />
 
             <div ref={mapRef} className="w-full h-full opacity-90" />

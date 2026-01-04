@@ -22,26 +22,49 @@ export async function GET(
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
 
-        // Hide full profile if not following and not self
-        if (session?.user?.id !== userId) {
-            const currentUser = await User.findById(session?.user?.id);
-            const isFollowing = currentUser?.following?.includes(new mongoose.Types.ObjectId(userId));
-
-            if (!isFollowing && user.role !== 'admin') {
-                // Show limited profile
-                return NextResponse.json({
-                    _id: user._id,
-                    name: user.name,
-                    username: user.username,
-                    image: user.image,
-                    status: user.status,
-                    followers: user.followers?.length || 0,
-                    followersCount: user.followers?.length || 0,
-                }, { status: 200 });
-            }
+        // If viewing own profile, return full profile
+        if (session?.user?.id === userId) {
+            return NextResponse.json(user, { status: 200 });
         }
 
-        return NextResponse.json(user, { status: 200 });
+        // If viewing another user's profile, check follow relationship
+        const currentUserObjectId = new mongoose.Types.ObjectId(session?.user?.id || '');
+        const userObjectId = new mongoose.Types.ObjectId(userId);
+        
+        // Check if current user follows this user
+        const isFollowing = user.followers?.some((follower: any) => 
+            follower._id?.equals(currentUserObjectId)
+        ) ?? false;
+
+        // Check if user follows current user (mutual)
+        const currentUser = await User.findById(session?.user?.id);
+        const isMutualFollowing = currentUser?.following?.some((followee: any) =>
+            followee._id?.equals(userObjectId)
+        ) ?? false;
+
+        // If not following and not mutual, show limited profile
+        if (!isFollowing && !isMutualFollowing && user.role !== 'admin') {
+            return NextResponse.json({
+                _id: user._id,
+                name: user.name,
+                username: user.username,
+                image: user.image,
+                status: user.status,
+                bio: user.bio || null,
+                followersCount: user.followers?.length || 0,
+                followingCount: user.following?.length || 0,
+                isFollowing: false,
+                isMutual: false,
+                message: "Follow this user to see their full profile"
+            }, { status: 200 });
+        }
+
+        // Return full profile if following or mutual
+        return NextResponse.json({
+            ...user.toObject(),
+            isFollowing: isFollowing,
+            isMutual: isMutualFollowing,
+        }, { status: 200 });
     } catch (error) {
         console.error("GET_PROFILE_ERROR", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

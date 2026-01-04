@@ -76,10 +76,24 @@ export default function MessagesPage() {
         };
     }, [socket, conversationId]);
 
+    // Polling fallback for messages - check every 3 seconds
+    useEffect(() => {
+        if (!conversationId) return;
+
+        const pollInterval = setInterval(() => {
+            fetchMessages();
+        }, 3000);
+
+        return () => clearInterval(pollInterval);
+    }, [conversationId]);
+
     const fetchConversation = async () => {
         try {
-            // This would be fetched from your conversation details endpoint
-            setLoading(false);
+            const res = await fetch(`/api/chats/${conversationId}`);
+            if (res.ok) {
+                const data = await res.json();
+                setConversation(data);
+            }
         } catch (error) {
             console.error("Error fetching conversation:", error);
         }

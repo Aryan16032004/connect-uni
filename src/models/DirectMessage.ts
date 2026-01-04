@@ -36,7 +36,18 @@ const DirectMessageSchema = new Schema({
     deleted: {
         type: Boolean,
         default: false
-    }
+    },
+    readBy: [{
+        userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: true,
+        },
+        readAt: {
+            type: Date,
+            default: Date.now,
+        },
+    }],
 }, { timestamps: true });
 
 export const DirectMessage = models.DirectMessage || model("DirectMessage", DirectMessageSchema);

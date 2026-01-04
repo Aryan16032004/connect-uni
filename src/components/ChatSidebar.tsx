@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { Search, Plus, MessageSquare, Users, ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search, Plus, MessageSquare, Users, ArrowLeft, X } from "lucide-react";
 import Link from "next/link";
 import { useSocket } from "@/components/providers/SocketProvider";
 
@@ -28,12 +29,16 @@ interface SearchResult {
 export default function ChatSidebar() {
     const { data: session } = useSession();
     const { socket } = useSocket();
+    const router = useRouter();
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [showSearch, setShowSearch] = useState(false);
+    const [showCreateGroup, setShowCreateGroup] = useState(false);
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<'chats' | 'groups'>('chats');
+    const [groupName, setGroupName] = useState("");
+    const [groupMembers, setGroupMembers] = useState<string[]>([]);
 
     useEffect(() => {
         if (session?.user?.id) {
@@ -110,12 +115,48 @@ export default function ChatSidebar() {
                 setSearchQuery("");
                 setShowSearch(false);
                 setSearchResults([]);
-                fetchConversations();
-                // Navigate to chat would happen in parent
+                router.push(`/messages/${conversation._id}`);
             }
         } catch (error) {
             console.error("Error starting chat:", error);
         }
+    };
+
+    const createGroup = async () => {
+        if (!groupName.trim() || groupMembers.length === 0) {
+            alert("Group name and members are required");
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/groups', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: groupName,
+                    memberIds: groupMembers
+                })
+            });
+
+            if (res.ok) {
+                const group = await res.json();
+                setGroupName("");
+                setGroupMembers([]);
+                setShowCreateGroup(false);
+                fetchConversations();
+                router.push(`/messages/${group._id}`);
+            }
+        } catch (error) {
+            console.error("Error creating group:", error);
+        }
+    };
+
+    const toggleGroupMember = (userId: string) => {
+        setGroupMembers(prev =>
+            prev.includes(userId)
+                ? prev.filter(id => id !== userId)
+                : [...prev, userId]
+        );
     };
 
     const getOtherUser = (conversation: Conversation) => {
@@ -141,12 +182,22 @@ export default function ChatSidebar() {
                         <MessageSquare size={24} />
                         Messages
                     </h2>
-                    <button
-                        onClick={() => setShowSearch(!showSearch)}
-                        className="p-2 hover:bg-muted rounded-lg transition-colors"
-                    >
-                        <Search size={20} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setShowSearch(!showSearch)}
+                            className="p-2 hover:bg-muted rounded-lg transition-colors"
+                            title="Search users"
+                        >
+                            <Search size={20} />
+                        </button>
+                        <button
+                            onClick={() => setShowCreateGroup(true)}
+                            className="p-2 hover:bg-muted rounded-lg transition-colors"
+                            title="Create group"
+                        >
+                            <Users size={20} />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Search Box */}
@@ -271,6 +322,121 @@ export default function ChatSidebar() {
                     </div>
                 )}
             </div>
+
+            {/* Create Group Modal */}
+            {showCreateGroup && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-background rounded-lg border border-border w-full max-w-md max-h-[90vh] overflow-y-auto">
+                        <div className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background">
+                            <h3 className="font-bold text-lg">Create Group</h3>
+                            <button
+                                onClick={() => setShowCreateGroup(false)}
+                                className="p-1 hover:bg-muted rounded-lg transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="p-4 space-y-4">
+                            {/* Group Name */}
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Group Name</label>
+                                <input
+                                    type="text"
+                                    value={groupName}
+                                    onChange={(e) => setGroupName(e.target.value)}
+                                    placeholder="Enter group name"
+                                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                                />
+                            </div>
+
+                            {/* Search Members */}
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Add Members</label>
+                                <input
+                                    type="text"
+                                    placeholder="Search users..."
+                                    value={searchQuery}
+                                    onChange={(e) => handleSearch(e.target.value)}
+                                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                                />
+                            </div>
+
+                            {/* Members List */}
+                            {searchResults.length > 0 && (
+                                <div className="border border-border rounded-lg divide-y max-h-48 overflow-y-auto">
+                                    {searchResults.map((user) => (
+                                        <label
+                                            key={user._id}
+                                            className="flex items-center gap-3 p-3 hover:bg-muted transition-colors cursor-pointer"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={groupMembers.includes(user._id)}
+                                                onChange={() => toggleGroupMember(user._id)}
+                                                className="w-4 h-4"
+                                            />
+                                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                                {user.image ? (
+                                                    <img src={user.image} alt={user.name} className="w-full h-full rounded-full object-cover" />
+                                                ) : (
+                                                    user.name[0]
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium truncate">{user.name}</p>
+                                                <p className="text-xs text-muted-foreground truncate">@{user.username}</p>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Selected Members */}
+                            {groupMembers.length > 0 && (
+                                <div className="space-y-2">
+                                    <p className="text-sm font-medium">{groupMembers.length} member(s) selected</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {searchResults
+                                            .filter(u => groupMembers.includes(u._id))
+                                            .map(user => (
+                                                <div
+                                                    key={user._id}
+                                                    className="bg-primary/20 text-primary px-3 py-1 rounded-full text-sm flex items-center gap-2"
+                                                >
+                                                    {user.name}
+                                                    <button
+                                                        onClick={() => toggleGroupMember(user._id)}
+                                                        className="hover:text-primary/70"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Buttons */}
+                            <div className="flex gap-3 pt-4 border-t border-border">
+                                <button
+                                    onClick={() => setShowCreateGroup(false)}
+                                    className="flex-1 px-4 py-2 rounded-lg border border-border hover:bg-muted transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={createGroup}
+                                    disabled={!groupName.trim() || groupMembers.length === 0}
+                                    className="flex-1 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Create Group
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

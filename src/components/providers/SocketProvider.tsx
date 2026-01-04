@@ -22,14 +22,25 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     const [isConnected, setIsConnected] = useState(false);
 
     useEffect(() => {
-        const socketInstance = new (ClientIO as any)(process.env.NEXT_PUBLIC_SITE_URL!, {
+        // Get the URL dynamically - use current origin if NEXT_PUBLIC_SITE_URL is not set
+        const socketUrl = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+        
+        const socketInstance = new (ClientIO as any)(socketUrl, {
             path: "/api/socket/io",
             addTrailingSlash: false,
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            reconnectionAttempts: 5,
         });
 
         socketInstance.on("connect", () => {
-            console.log("Socket.io: Connected");
+            console.log("Socket.io: Connected with ID:", socketInstance.id);
             setIsConnected(true);
+        });
+
+        socketInstance.on("connect_error", (error: any) => {
+            console.error("Socket.io: Connection error:", error);
         });
 
         socketInstance.on("disconnect", () => {
