@@ -44,14 +44,14 @@ export default function EventDetailPage() {
     });
 
     useEffect(() => {
-        if (params.id) {
+        if (params?.id) {
             fetchEvent();
         }
-    }, [params.id]);
+    }, [params?.id]);
 
     const fetchEvent = async () => {
         try {
-            const res = await fetch(`/api/events/${params.id}`);
+            const res = await fetch(`/api/events/${params?.id}`);
             if (res.ok) {
                 const data = await res.json();
                 setEvent(data);

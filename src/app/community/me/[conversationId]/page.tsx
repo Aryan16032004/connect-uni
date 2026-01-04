@@ -7,6 +7,7 @@ import MediaRoom from "@/components/server/MediaRoom";
 import { useSession } from "next-auth/react";
 import dynamic from "next/dynamic";
 import { useSocket } from "@/components/providers/SocketProvider";
+import { useRTM } from "@/components/providers/RTMProvider";
 
 const EmojiPicker = dynamic(() => import("emoji-picker-react"), { ssr: false });
 
@@ -17,6 +18,7 @@ export default function DirectMessagePage() {
     const { data: session } = useSession();
 
     const { socket, isConnected } = useSocket();
+    const { rtmClient } = useRTM();
 
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState("");
@@ -175,8 +177,8 @@ export default function DirectMessagePage() {
 
     // Auto Join & Call Logic
     const searchParams = useSearchParams();
-    const autoJoin = searchParams.get("autoJoin");
-    const videoParam = searchParams.get("video");
+    const autoJoin = searchParams ? searchParams.get("autoJoin") : null;
+    const videoParam = searchParams ? searchParams.get("video") : null;
 
     useEffect(() => {
         if (autoJoin === "true") {
