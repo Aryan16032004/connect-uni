@@ -20,7 +20,7 @@ export default function MembersList({ serverId, canManage, isOwner }: { serverId
             // Server details usually doesn't include ALL members for scalability.
             // We need to Create GET /api/servers/[id]/members first? 
             // OR we can implement it here.
-            
+
             // Wait, I missed creating the GET Members API. 
             // Let's stub this with a TODO or implement the API quickly.
             // For now, let's assuming we ADDED it or will add it.
@@ -67,15 +67,15 @@ export default function MembersList({ serverId, canManage, isOwner }: { serverId
 
     const handleTransfer = async (userId: string) => {
         if (!confirm("Are you sure? requesting to transfer ownership to this user. You will lose owner privileges.")) return;
-         try {
+        try {
             const res = await fetch(`/api/servers/${serverId}/transfer`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ newOwnerId: userId }),
             });
             if (res.ok) {
-                 alert("Ownership transferred. Reloading...");
-                 window.location.reload();
+                alert("Ownership transferred. Reloading...");
+                window.location.reload();
             }
             else alert("Failed to transfer");
         } catch (e) { console.error(e); }
@@ -87,66 +87,71 @@ export default function MembersList({ serverId, canManage, isOwner }: { serverId
         <div className="space-y-4">
             <h3 className="font-bold text-lg">Server Members ({members.length})</h3>
             <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-                {members.map(member => (
-                    <div key={member._id} className="flex items-center justify-between p-2 bg-secondary/5 rounded-lg hover:bg-secondary/10">
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-                                {(member.userId.name || "U")[0]}
-                            </div>
-                            <div>
-                                <div className="font-semibold text-sm flex items-center gap-2">
-                                    {member.userId.name}
-                                    {/* Role Badges */}
-                                    {member.roles && member.roles.some((r: any) => r.name === 'Admin') && (
-                                        <Shield size={12} className="text-red-500" />
-                                    )}
+                {members.map(member => {
+                    // Safety check for deleted users or bad data
+                    if (!member.userId) return null;
+
+                    return (
+                        <div key={member._id} className="flex items-center justify-between p-2 bg-secondary/5 rounded-lg hover:bg-secondary/10">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                                    {(member.userId.name || "U")[0]}
                                 </div>
-                                <div className="text-xs text-muted-foreground">Joined {new Date(member.joinedAt).toLocaleDateString()}</div>
+                                <div>
+                                    <div className="font-semibold text-sm flex items-center gap-2">
+                                        {member.userId.name || "Unknown User"}
+                                        {/* Role Badges */}
+                                        {member.roles && member.roles.some((r: any) => r.name === 'Admin') && (
+                                            <Shield size={12} className="text-red-500" />
+                                        )}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">Joined {new Date(member.joinedAt).toLocaleDateString()}</div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                                {/* Message Button */}
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            const res = await fetch("/api/conversations", {
+                                                method: "POST",
+                                                headers: { "Content-Type": "application/json" },
+                                                body: JSON.stringify({ remoteUserId: member.userId._id })
+                                            });
+                                            if (res.ok) {
+                                                const conv = await res.json();
+                                                // Use window.location as useRouter might not be available/passed or we can just navigate
+                                                // Actually, MembersList is a client component, let's use useRouter if available or window.location
+                                                window.location.href = `/community/me/${conv._id}`;
+                                            }
+                                        } catch (e) { console.error(e); }
+                                    }}
+                                    className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded"
+                                    title="Message"
+                                >
+                                    <MessageSquare size={16} />
+                                </button>
+
+                                {canManage && (
+                                    <>
+                                        <button onClick={() => handleKick(member.userId._id)} className="p-1.5 text-muted-foreground hover:text-orange-500 hover:bg-orange-500/10 rounded" title="Kick">
+                                            <UserMinus size={16} />
+                                        </button>
+                                        <button onClick={() => handleBan(member.userId._id)} className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded" title="Ban">
+                                            <Ban size={16} />
+                                        </button>
+                                        {isOwner && (
+                                            <button onClick={() => handleTransfer(member.userId._id)} className="p-1.5 text-muted-foreground hover:text-yellow-500 hover:bg-yellow-500/10 rounded" title="Transfer Ownership">
+                                                <Crown size={16} />
+                                            </button>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         </div>
-                        
-                           <div className="flex items-center gap-1">
-                               {/* Message Button */}
-                               <button 
-                                   onClick={async () => {
-                                       try {
-                                           const res = await fetch("/api/conversations", {
-                                               method: "POST",
-                                               headers: {"Content-Type": "application/json"},
-                                               body: JSON.stringify({ remoteUserId: member.userId._id })
-                                           });
-                                           if (res.ok) {
-                                               const conv = await res.json();
-                                               // Use window.location as useRouter might not be available/passed or we can just navigate
-                                               // Actually, MembersList is a client component, let's use useRouter if available or window.location
-                                               window.location.href = `/community/me/${conv._id}`;
-                                           }
-                                       } catch (e) { console.error(e); }
-                                   }}
-                                   className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded" 
-                                   title="Message"
-                               >
-                                   <MessageSquare size={16} />
-                               </button>
-
-                               {canManage && (
-                                   <>
-                                       <button onClick={() => handleKick(member.userId._id)} className="p-1.5 text-muted-foreground hover:text-orange-500 hover:bg-orange-500/10 rounded" title="Kick">
-                                           <UserMinus size={16} />
-                                       </button>
-                                       <button onClick={() => handleBan(member.userId._id)} className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded" title="Ban">
-                                           <Ban size={16} />
-                                       </button>
-                                       {isOwner && (
-                                           <button onClick={() => handleTransfer(member.userId._id)} className="p-1.5 text-muted-foreground hover:text-yellow-500 hover:bg-yellow-500/10 rounded" title="Transfer Ownership">
-                                               <Crown size={16} />
-                                           </button>
-                                       )}
-                                   </>
-                               )}
-                           </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );

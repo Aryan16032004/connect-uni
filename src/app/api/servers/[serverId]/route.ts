@@ -46,3 +46,65 @@ export async function GET(req: Request, props: { params: Promise<{ serverId: str
         return NextResponse.json({ message: "Internal Error" }, { status: 500 });
     }
 }
+
+export async function PATCH(req: Request, props: { params: Promise<{ serverId: string }> }) {
+    const params = await props.params;
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session?.user?.id) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
+        const { serverId } = params;
+        const { name, rules } = await req.json();
+
+        await dbConnect();
+
+        // Ensure server exists and user is owner or admin (for now restrict to owner for settings)
+        // Or check ServerMembers for permissions
+        const server = await Server.findById(serverId);
+        if (!server) return NextResponse.json({ message: "Not found" }, { status: 404 });
+
+        if (server.ownerId.toString() !== session.user.id) {
+            return NextResponse.json({ message: "Only owner can edit server settings" }, { status: 403 });
+        }
+
+        if (name) server.name = name;
+        if (rules !== undefined) server.rules = rules;
+
+        await server.save();
+        return NextResponse.json(server);
+
+    } catch (error) {
+        console.error("SERVER_ID_PATCH", error);
+        return NextResponse.json({ message: "Internal Error" }, { status: 500 });
+    }
+}
+
+export async function DELETE(req: Request, props: { params: Promise<{ serverId: string }> }) {
+    const params = await props.params;
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session?.user?.id) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
+        const { serverId } = params;
+        await dbConnect();
+
+        const server = await Server.findById(serverId);
+        if (!server) return NextResponse.json({ message: "Not found" }, { status: 404 });
+
+        if (server.ownerId.toString() !== session.user.id) {
+            return NextResponse.json({ message: "Only owner can delete server" }, { status: 403 });
+        }
+
+        await Server.findByIdAndDelete(serverId);
+        // Cleanup members and channels
+        await ServerMember.deleteMany({ serverId });
+        await Channel.deleteMany({ serverId });
+        // TODO: Cleanup messages, invites, etc.
+
+        return NextResponse.json({ message: "Server deleted" });
+
+    } catch (error) {
+        console.error("SERVER_ID_DELETE", error);
+        return NextResponse.json({ message: "Internal Error" }, { status: 500 });
+    }
+}

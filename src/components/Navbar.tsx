@@ -64,9 +64,10 @@ export function Navbar() {
                                 href="/profile"
                                 className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
                             >
-                                <Avatar 
-                                    avatarId={session.user?.avatar} 
+                                <Avatar
+                                    avatarId={session.user?.avatar}
                                     name={session.user?.name || undefined}
+                                    imageUrl={session.user?.image}
                                     size="sm"
                                 />
                                 <span>{session.user?.name}</span>
@@ -137,9 +138,10 @@ export function Navbar() {
                                 onClick={() => setIsOpen(false)}
                                 className="flex items-center gap-2 py-2 text-muted-foreground"
                             >
-                                <Avatar 
-                                    avatarId={session.user?.avatar} 
+                                <Avatar
+                                    avatarId={session.user?.avatar}
                                     name={session.user?.name || undefined}
+                                    imageUrl={session.user?.image}
                                     size="sm"
                                 />
                                 Profile

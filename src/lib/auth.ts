@@ -51,10 +51,12 @@ export const authOptions: NextAuthOptions = {
                 token.role = user.role;
                 token.id = user.id;
                 token.avatar = user.avatar;
+                token.image = user.image;
             }
             // Handle session update
-            if (trigger === "update" && session?.user?.avatar) {
-                token.avatar = session.user.avatar;
+            if (trigger === "update") {
+                if (session?.user?.avatar !== undefined) token.avatar = session.user.avatar;
+                if (session?.user?.image !== undefined) token.image = session.user.image;
             }
             return token;
         },
@@ -63,6 +65,7 @@ export const authOptions: NextAuthOptions = {
                 session.user.role = token.role;
                 session.user.id = token.id;
                 session.user.avatar = token.avatar;
+                session.user.image = token.image;
             }
             return session;
         },

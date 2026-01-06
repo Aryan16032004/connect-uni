@@ -1,9 +1,10 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { User, BookOpen, Heart, Globe, Github, Linkedin, Twitter, Instagram } from "lucide-react";
+import { User, BookOpen, Heart, Globe, Github, Linkedin, Twitter, Instagram, Camera, Upload, Trash2, AlertTriangle } from "lucide-react";
+import ConfirmationModal from "@/components/ConfirmationModal";
 import { AVATARS, getAvatarById } from "@/lib/avatars";
 
 interface UserProfile {
@@ -11,6 +12,7 @@ interface UserProfile {
     email: string;
     role: string;
     avatar?: string;
+    image?: string;
     bio?: string;
     courses?: string[];
     interests?: string[];
@@ -33,6 +35,7 @@ export default function ProfilePage() {
     // Form State
     const [formData, setFormData] = useState({
         avatar: "boy1",
+        image: "",
         bio: "",
         courses: "",
         interests: "",
@@ -40,7 +43,15 @@ export default function ProfilePage() {
         github: "",
         twitter: "",
         instagram: "",
+
     });
+
+    const [uploading, setUploading] = useState(false);
+
+    const [deleting, setDeleting] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+    const [isLoaded, setIsLoaded] = useState(false);
 
     useEffect(() => {
         if (status === "unauthenticated") {
@@ -48,10 +59,11 @@ export default function ProfilePage() {
             return;
         }
 
-        if (status === "authenticated") {
+        if (status === "authenticated" && !isLoaded) {
             fetchProfile();
+            setIsLoaded(true);
         }
-    }, [status, router]);
+    }, [status, router, isLoaded]);
 
     const fetchProfile = async () => {
         try {
@@ -61,6 +73,7 @@ export default function ProfilePage() {
                 setProfile(data);
                 setFormData({
                     avatar: data.avatar || "boy1",
+                    image: data.image || "",
                     bio: data.bio || "",
                     courses: data.courses?.join(", ") || "",
                     interests: data.interests?.join(", ") || "",
@@ -85,6 +98,7 @@ export default function ProfilePage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     avatar: formData.avatar,
+                    image: formData.image,
                     bio: formData.bio,
                     courses: formData.courses.split(",").map(s => s.trim()).filter(Boolean),
                     interests: formData.interests.split(",").map(s => s.trim()).filter(Boolean),
@@ -101,13 +115,14 @@ export default function ProfilePage() {
                 const updated = await res.json();
                 setProfile(updated);
                 setIsEditing(false);
-                
+
                 // Update session with new avatar
                 await update({
                     ...session,
                     user: {
                         ...session?.user,
                         avatar: updated.avatar,
+                        image: updated.image // Ensure image is cleared if removed
                     }
                 });
             }
@@ -115,6 +130,67 @@ export default function ProfilePage() {
             console.error("Error saving profile:", error);
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        const data = new FormData();
+        data.append("file", file);
+        data.append("folder", "profiles");
+
+        try {
+            const res = await fetch("/api/upload", {
+                method: "POST",
+                body: data,
+            });
+
+            if (res.ok) {
+                const { url } = await res.json();
+                setFormData(prev => ({ ...prev, image: url }));
+
+                // Update session immediately to reflect change in Navbar
+                await update({
+                    ...session,
+                    user: {
+                        ...session?.user,
+                        image: url,
+                    }
+                });
+
+            } else {
+                console.error("Failed to upload image");
+            }
+        } catch (error) {
+            console.error("Error uploading image:", error);
+        } finally {
+            setUploading(false);
+        }
+
+    };
+
+    const handleDeleteAccount = async () => {
+        setDeleting(true);
+
+        try {
+            const res = await fetch("/api/profile", {
+                method: "DELETE",
+            });
+
+            if (res.ok) {
+                await signOut({ callbackUrl: '/' });
+            } else {
+                alert("Failed to delete account. Please try again.");
+            }
+        } catch (error) {
+            console.error("Error deleting account:", error);
+            alert("An error occurred.");
+        } finally {
+            setDeleting(false);
+            setShowDeleteModal(false);
         }
     };
 
@@ -127,8 +203,29 @@ export default function ProfilePage() {
                 <div className="glass-card p-8 rounded-2xl flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-primary/20 to-secondary/20 -z-10" />
 
-                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 border-4 border-background flex items-center justify-center text-6xl shadow-xl">
-                        {getAvatarById(profile?.avatar || 'boy1').emoji}
+                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 border-4 border-background flex items-center justify-center text-6xl shadow-xl relative group overflow-hidden">
+                        {formData.image ? (
+                            <img src={formData.image} alt="Profile" className="w-full h-full object-cover" />
+                        ) : (
+                            getAvatarById(formData.avatar || 'boy1').emoji
+                        )}
+
+                        {isEditing && (
+                            <label className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={handleImageUpload}
+                                    disabled={uploading}
+                                />
+                                {uploading ? (
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                                ) : (
+                                    <Camera className="text-white w-8 h-8" />
+                                )}
+                            </label>
+                        )}
                     </div>
 
                     <div className="flex-1 text-center md:text-left">
@@ -165,12 +262,11 @@ export default function ProfilePage() {
                                                 <button
                                                     key={avatar.id}
                                                     type="button"
-                                                    onClick={() => setFormData({ ...formData, avatar: avatar.id })}
-                                                    className={`w-full aspect-square rounded-xl flex items-center justify-center text-3xl transition-all ${
-                                                        formData.avatar === avatar.id
-                                                            ? 'bg-primary/20 border-2 border-primary scale-110'
-                                                            : 'bg-muted/30 hover:bg-muted/50 border border-border'
-                                                    }`}
+                                                    onClick={() => setFormData({ ...formData, avatar: avatar.id, image: "" })}
+                                                    className={`w-full aspect-square rounded-xl flex items-center justify-center text-3xl transition-all ${formData.avatar === avatar.id && !formData.image
+                                                        ? 'bg-primary/20 border-2 border-primary scale-110'
+                                                        : 'bg-muted/30 hover:bg-muted/50 border border-border'
+                                                        }`}
                                                     title={avatar.label}
                                                 >
                                                     {avatar.emoji}
@@ -185,12 +281,11 @@ export default function ProfilePage() {
                                                 <button
                                                     key={avatar.id}
                                                     type="button"
-                                                    onClick={() => setFormData({ ...formData, avatar: avatar.id })}
-                                                    className={`w-full aspect-square rounded-xl flex items-center justify-center text-3xl transition-all ${
-                                                        formData.avatar === avatar.id
-                                                            ? 'bg-primary/20 border-2 border-primary scale-110'
-                                                            : 'bg-muted/30 hover:bg-muted/50 border border-border'
-                                                    }`}
+                                                    onClick={() => setFormData({ ...formData, avatar: avatar.id, image: "" })}
+                                                    className={`w-full aspect-square rounded-xl flex items-center justify-center text-3xl transition-all ${formData.avatar === avatar.id && !formData.image
+                                                        ? 'bg-primary/20 border-2 border-primary scale-110'
+                                                        : 'bg-muted/30 hover:bg-muted/50 border border-border'
+                                                        }`}
                                                     title={avatar.label}
                                                 >
                                                     {avatar.emoji}
@@ -302,7 +397,39 @@ export default function ProfilePage() {
                         </div>
                     </div>
                 </div>
+
+                {/* Danger Zone */}
+                <div className="glass-card p-6 rounded-2xl border border-red-500/20 bg-red-500/5">
+                    <h3 className="text-lg font-semibold flex items-center gap-2 text-red-500 mb-4">
+                        <AlertTriangle size={20} /> Danger Zone
+                    </h3>
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div>
+                            <p className="font-medium">Delete Account</p>
+                            <p className="text-sm text-muted-foreground">Permanently delete your account and all of your content.</p>
+                        </div>
+                        <button
+                            onClick={() => setShowDeleteModal(true)}
+                            disabled={deleting}
+                            className="px-4 py-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-all flex items-center gap-2 border border-red-500/20"
+                        >
+                            <Trash2 size={16} />
+                            {deleting ? "Deleting..." : "Delete Account"}
+                        </button>
+                    </div>
+                </div>
             </div>
+
+            <ConfirmationModal
+                isOpen={showDeleteModal}
+                onClose={() => setShowDeleteModal(false)}
+                onConfirm={handleDeleteAccount}
+                title="Delete Account?"
+                description="This action cannot be undone. This will permanently delete your account and remove all your data from our servers."
+                confirmLabel="Delete Account"
+                variant="danger"
+                isLoading={deleting}
+            />
         </div>
     );
 }

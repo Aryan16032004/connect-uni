@@ -13,6 +13,8 @@ declare module "next-auth" {
             role: string;
             /** The user's avatar */
             avatar?: string;
+            /** The user's profile picture URL */
+            image?: string;
         } & DefaultSession["user"];
     }
 
@@ -20,6 +22,7 @@ declare module "next-auth" {
         role: string;
         id: string;
         avatar?: string;
+        image?: string;
     }
 }
 
@@ -28,5 +31,6 @@ declare module "next-auth/jwt" {
         role: string;
         id: string;
         avatar?: string;
+        image?: string;
     }
 }

@@ -151,8 +151,8 @@ export default function MessagesPage() {
     const getOtherUser = () => {
         if (!conversation) return null;
         if (conversation.type === 'direct') {
-            return session?.user?.id === conversation.memberOneId?._id 
-                ? conversation.memberTwoId 
+            return session?.user?.id === conversation.memberOneId?._id
+                ? conversation.memberTwoId
                 : conversation.memberOneId;
         }
         return null;
@@ -246,8 +246,8 @@ export default function MessagesPage() {
                                     {msg.attachments && msg.attachments.length > 0 && (
                                         <div className="space-y-2">
                                             {msg.attachments.map((url: string, idx: number) => (
-                                                <div key={idx} className="rounded-xl overflow-hidden border border-border shadow-sm max-h-60">
-                                                    <img src={url} alt="attachment" className="w-full h-full object-cover" />
+                                                <div key={idx} className="rounded-xl overflow-hidden border border-border shadow-sm">
+                                                    <img src={url} alt="attachment" className="w-full h-auto" />
                                                 </div>
                                             ))}
                                         </div>

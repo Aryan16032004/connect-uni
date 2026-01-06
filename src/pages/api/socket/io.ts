@@ -27,8 +27,23 @@ const ioHandler = (req: NextApiRequest, res: NextApiResponseServerIo) => {
             addTrailingSlash: false,
         });
 
+        // Track online users: Map<userId, socketId>
+        const onlineUsers = new Map<string, string>();
+
         io.on("connection", (socket) => {
             console.log("SERVER: Socket Connected:", socket.id);
+
+            socket.on("register-user", (userId: string) => {
+                onlineUsers.set(userId, socket.id);
+                // Broadcast to all clients that this user is online
+                io.emit("user:online", userId);
+
+                // Send current online users to the newly connected user
+                const onlineUserIds = Array.from(onlineUsers.keys());
+                socket.emit("users:online", onlineUserIds);
+
+                console.log(`SERVER: User registered: ${userId}`);
+            });
 
             socket.on("join-room", (roomId: string) => {
                 socket.join(roomId);
@@ -55,6 +70,15 @@ const ioHandler = (req: NextApiRequest, res: NextApiResponseServerIo) => {
 
             socket.on("disconnect", () => {
                 console.log("SERVER: Socket Disconnected:", socket.id);
+                // Find and remove the user who disconnected
+                for (const [userId, socketId] of onlineUsers.entries()) {
+                    if (socketId === socket.id) {
+                        onlineUsers.delete(userId);
+                        io.emit("user:offline", userId);
+                        console.log(`SERVER: User disconnected: ${userId}`);
+                        break;
+                    }
+                }
             });
         });
 

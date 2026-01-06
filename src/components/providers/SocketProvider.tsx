@@ -6,25 +6,32 @@ import { io as ClientIO, Socket } from "socket.io-client";
 type SocketContextType = {
     socket: any | null;
     isConnected: boolean;
+    onlineUsers: Set<string>;
 };
 
 const SocketContext = createContext<SocketContextType>({
     socket: null,
     isConnected: false,
+    onlineUsers: new Set(),
 });
 
 export const useSocket = () => {
     return useContext(SocketContext);
 };
 
+// We need the session to register the user
+import { useSession } from "next-auth/react";
+
 export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     const [socket, setSocket] = useState<any | null>(null);
     const [isConnected, setIsConnected] = useState(false);
+    const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+    const { data: session } = useSession();
 
     useEffect(() => {
         // Get the URL dynamically - use current origin if NEXT_PUBLIC_SITE_URL is not set
         const socketUrl = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
-        
+
         const socketInstance = new (ClientIO as any)(socketUrl, {
             path: "/api/socket/io",
             addTrailingSlash: false,
@@ -37,6 +44,11 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         socketInstance.on("connect", () => {
             console.log("Socket.io: Connected with ID:", socketInstance.id);
             setIsConnected(true);
+
+            // Register user if session exists
+            if (session?.user?.id) {
+                socketInstance.emit("register-user", session.user.id);
+            }
         });
 
         socketInstance.on("connect_error", (error: any) => {
@@ -48,15 +60,36 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
             setIsConnected(false);
         });
 
+        // Online status events
+        socketInstance.on("users:online", (userIds: string[]) => {
+            setOnlineUsers(new Set(userIds));
+        });
+
+        socketInstance.on("user:online", (userId: string) => {
+            setOnlineUsers((prev) => {
+                const newSet = new Set(prev);
+                newSet.add(userId);
+                return newSet;
+            });
+        });
+
+        socketInstance.on("user:offline", (userId: string) => {
+            setOnlineUsers((prev) => {
+                const newSet = new Set(prev);
+                newSet.delete(userId);
+                return newSet;
+            });
+        });
+
         setSocket(socketInstance);
 
         return () => {
             socketInstance.disconnect();
         };
-    }, []);
+    }, [session?.user?.id]); // Re-run if session user changes
 
     return (
-        <SocketContext.Provider value={{ socket, isConnected }}>
+        <SocketContext.Provider value={{ socket, isConnected, onlineUsers }}>
             {children}
         </SocketContext.Provider>
     );

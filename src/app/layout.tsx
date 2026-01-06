@@ -14,6 +14,7 @@ export const metadata: Metadata = {
 };
 
 import { SocketProvider } from "@/components/providers/SocketProvider";
+import LocationTracker from "@/components/providers/LocationTracker";
 
 export default function RootLayout({
   children,
@@ -26,6 +27,7 @@ export default function RootLayout({
         <ThemeProvider>
           <Providers>
             <SocketProvider>
+              <LocationTracker />
               <Navbar />
               {children}
             </SocketProvider>

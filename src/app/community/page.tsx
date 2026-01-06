@@ -173,10 +173,17 @@ export default function CommunityPage() {
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {conversations.map(conv => {
-                                const other = conv.memberOneId._id === session?.user?.id ? conv.memberTwoId : conv.memberOneId;
+                                // Safe navigation to prevent crash if a user is deleted
+                                const m1 = conv.memberOneId?._id;
+                                const m2 = conv.memberTwoId?._id;
+                                if (!m1 || !m2) return null; // Skip corrupted conversations
+
+                                const other = m1 === session?.user?.id ? conv.memberTwoId : conv.memberOneId;
+                                if (!other) return null;
+
                                 return (
                                     <Link
-                                        href={`/community/me/${conv._id}`}
+                                        href={`/messages/${conv._id}`}
                                         key={conv._id}
                                         className="glass-card p-4 rounded-2xl border border-border/50 hover:border-pink-500/50 hover:bg-secondary/10 transition-all flex items-center gap-4"
                                     >
