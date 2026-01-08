@@ -55,6 +55,8 @@ export async function PATCH(req: Request, props: { params: Promise<{ serverId: s
 
         const { serverId } = params;
         const { name, rules } = await req.json();
+        console.log("rules");
+        console.log("rules: ",rules);
 
         await dbConnect();
 
@@ -69,6 +71,8 @@ export async function PATCH(req: Request, props: { params: Promise<{ serverId: s
 
         if (name) server.name = name;
         if (rules !== undefined) server.rules = rules;
+        console.log("hellow")
+        console.log("rules: ",rules);
 
         await server.save();
         return NextResponse.json(server);

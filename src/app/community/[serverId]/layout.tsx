@@ -8,11 +8,13 @@ import { useSession } from "next-auth/react";
 import ServerSettingsModal from "@/components/server/SettingServer";
 import CreateChannelModal from "@/components/server/CreateChannelModal";
 import InviteManager from "@/components/server/InviteManager";
+import { useSocket } from "@/components/providers/SocketProvider";
 
 export default function ServerLayout({ children }: { children: React.ReactNode }) {
     const params = useParams();
     const router = useRouter();
     const { data: session } = useSession();
+    const { socket } = useSocket();
     const serverId = params?.serverId as string;
 
     const [server, setServer] = useState<any>(null);
@@ -28,6 +30,33 @@ export default function ServerLayout({ children }: { children: React.ReactNode }
     useEffect(() => {
         if (serverId) fetchServerDetails();
     }, [serverId]);
+
+    // Listen for kick/ban events
+    useEffect(() => {
+        if (!socket || !session?.user?.id) return;
+
+        const handleKicked = (data: { userId: string; serverId: string; serverName: string }) => {
+            if (data.userId === session.user.id && data.serverId === serverId) {
+                alert(`You have been kicked by the admin of ${data.serverName}`);
+                router.push("/community");
+            }
+        };
+
+        const handleBanned = (data: { userId: string; serverId: string; serverName: string }) => {
+            if (data.userId === session.user.id && data.serverId === serverId) {
+                alert(`You have been banned from ${data.serverName}`);
+                router.push("/community");
+            }
+        };
+
+        socket.on("user:kicked", handleKicked);
+        socket.on("user:banned", handleBanned);
+
+        return () => {
+            socket.off("user:kicked", handleKicked);
+            socket.off("user:banned", handleBanned);
+        };
+    }, [socket, session?.user?.id, serverId, router]);
 
     const fetchServerDetails = async () => {
         try {
@@ -192,8 +221,16 @@ export default function ServerLayout({ children }: { children: React.ReactNode }
                                 onClick={async () => {
                                     try {
                                         const res = await fetch(`/api/servers/${serverId}/rules/accept`, { method: "POST" });
-                                        if (res.ok) fetchServerDetails();
-                                    } catch (e) { console.error(e); }
+                                        if (res.ok) {
+                                            await fetchServerDetails();
+                                        } else {
+                                            const errorData = await res.json().catch(() => ({ error: 'Failed to accept rules' }));
+                                            alert(errorData.error || 'Failed to accept rules. Please try again.');
+                                        }
+                                    } catch (e) {
+                                        console.error(e);
+                                        alert('Network error. Please check your connection and try again.');
+                                    }
                                 }}
                                 className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
                             >

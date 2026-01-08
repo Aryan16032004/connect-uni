@@ -25,7 +25,18 @@ export async function DELETE(req: Request, props: { params: Promise<{ serverId: 
         // Delete membership
         await ServerMembers.findOneAndDelete({ serverId, userId: session.user.id });
 
-        return NextResponse.json({ message: "Left server" });
+        // Emit socket event to notify server members
+        try {
+            const { getIoInstance } = await import('@/lib/socket');
+            const io = getIoInstance();
+            if (io) {
+                io.emit('member:left', { serverId, userId: session.user.id });
+            }
+        } catch (e) {
+            console.log('Socket notification error:', e);
+        }
+
+        return NextResponse.json({ message: "Left successfully" });
 
     } catch (error) {
         console.error("SERVER_LEAVE_DELETE", error);

@@ -2,6 +2,7 @@ import { Server as NetServer } from "http";
 import { NextApiRequest } from "next";
 import { Server as ServerIO } from "socket.io";
 import { NextApiResponse } from "next";
+import { setIoInstance, setOnlineUsers } from "@/lib/socket";
 
 export type NextApiResponseServerIo = NextApiResponse & {
     socket: any & {
@@ -27,8 +28,12 @@ const ioHandler = (req: NextApiRequest, res: NextApiResponseServerIo) => {
             addTrailingSlash: false,
         });
 
+        // Store the io instance globally
+        setIoInstance(io);
+
         // Track online users: Map<userId, socketId>
         const onlineUsers = new Map<string, string>();
+        setOnlineUsers(onlineUsers);
 
         io.on("connection", (socket) => {
             console.log("SERVER: Socket Connected:", socket.id);

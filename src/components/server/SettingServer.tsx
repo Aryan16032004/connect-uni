@@ -6,6 +6,7 @@ import MembersList from "@/components/server/MembersList";
 import InviteManager from "@/components/server/InviteManager";
 import { Settings, LogOut, X, Save, Trash2, Shield, UserMinus, Ban } from "lucide-react";
 import clsx from "clsx";
+import { useSocket } from "@/components/providers/SocketProvider";
 
 
 export default function ServerSettingsModal({ server, onClose, onUpdate, canManage, isOwner }: any) {
@@ -18,21 +19,27 @@ export default function ServerSettingsModal({ server, onClose, onUpdate, canMana
     const [saving, setSaving] = useState(false);
 
     const handleSave = async () => {
+        if (!name.trim()) {
+            alert("Server name cannot be empty");
+            return;
+        }
         setSaving(true);
         try {
             const res = await fetch(`/api/servers/${server._id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, rules }),
+                body: JSON.stringify({ name: name.trim(), rules }),
             });
             if (res.ok) {
                 onUpdate();
-                alert("Settings saved!");
+                alert("Settings saved successfully!");
             } else {
-                alert("Failed to update server");
+                const errorData = await res.json().catch(() => ({ message: 'Failed to update server' }));
+                alert(errorData.message || "Failed to update server");
             }
         } catch (error) {
             console.error(error);
+            alert("Network error. Please try again.");
         } finally {
             setSaving(false);
         }
@@ -40,11 +47,20 @@ export default function ServerSettingsModal({ server, onClose, onUpdate, canMana
 
     const handleDelete = async () => {
         if (!confirm("Are you sure you want to delete this server? This action cannot be undone.")) return;
+        if (!confirm("This will permanently delete all channels, messages, and member data. Type DELETE to confirm.")) return;
         try {
             const res = await fetch(`/api/servers/${server._id}`, { method: "DELETE" });
-            if (res.ok) router.push("/community");
-            else alert("Failed to delete server");
-        } catch (error) { console.error(error); }
+            if (res.ok) {
+                alert("Server deleted successfully");
+                router.push("/community");
+            } else {
+                const errorData = await res.json().catch(() => ({ message: 'Failed to delete server' }));
+                alert(errorData.message || "Failed to delete server");
+            }
+        } catch (error) { 
+            console.error(error);
+            alert("Network error. Please try again.");
+        }
     };
 
     const handleLeave = async () => {
@@ -147,10 +163,28 @@ export default function ServerSettingsModal({ server, onClose, onUpdate, canMana
 function BlockedUsersList({ serverId }: { serverId: string }) {
     const [bans, setBans] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const { socket } = useSocket();
 
     useEffect(() => {
         fetchBans();
     }, [serverId]);
+
+    // Listen for real-time ban updates
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleMemberBanned = (data: { serverId: string, userId: string }) => {
+            if (data.serverId === serverId) {
+                fetchBans(); // Refresh ban list when someone is banned
+            }
+        };
+
+        socket.on("member:banned", handleMemberBanned);
+
+        return () => {
+            socket.off("member:banned", handleMemberBanned);
+        };
+    }, [socket, serverId]);
 
     const fetchBans = async () => {
         try {

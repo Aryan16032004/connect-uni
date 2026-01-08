@@ -44,6 +44,17 @@ export async function POST(req: Request) {
             role: "guest"
         });
 
+        // Emit socket event to notify server members
+        try {
+            const { getIoInstance } = await import('@/lib/socket');
+            const io = getIoInstance();
+            if (io) {
+                io.emit('member:joined', { serverId, userId: session.user.id });
+            }
+        } catch (e) {
+            console.log('Socket notification error:', e);
+        }
+
         return NextResponse.json({ success: true, serverId }, { status: 201 });
 
     } catch (error) {

@@ -45,10 +45,50 @@ export async function POST(req: Request, props: { params: Promise<{ serverId: st
             return NextResponse.json({ message: "Cannot kick self" }, { status: 400 });
         }
 
-        // Delete membership
+        // Check if target user is a member
+        const targetMember = await ServerMembers.findOne({ serverId, userId });
+        if (!targetMember) {
+            return NextResponse.json({ message: "User is not a member" }, { status: 404 });
+        }
+
+        // Prevent kicking the owner
+        const { Server } = await import("@/models/Server");
+        const server = await Server.findById(serverId);
+        if (server.ownerId.toString() === userId) {
+            return NextResponse.json({ message: "Cannot kick server owner" }, { status: 400 });
+        }
+
+        // Delete membership (kicked users CAN rejoin)
         await ServerMembers.findOneAndDelete({ serverId, userId });
 
-        return NextResponse.json({ message: "User kicked" });
+        // Emit socket event to notify the kicked user
+        try {
+            const { getIoInstance, getOnlineUsers } = await import('@/lib/socket');
+            const io = getIoInstance();
+            const onlineUsers = getOnlineUsers();
+            
+            if (io) {
+                // Notify the kicked user
+                if (onlineUsers) {
+                    const targetSocketId = onlineUsers.get(userId);
+                    if (targetSocketId) {
+                        io.to(targetSocketId).emit('user:kicked', { 
+                            userId, 
+                            serverId,
+                            serverName: server.name 
+                        });
+                        console.log(`Kick notification sent to user ${userId}`);
+                    }
+                }
+                
+                // Notify all server members about the kick (for member list updates)
+                io.emit('member:kicked', { serverId, userId });
+            }
+        } catch (e) {
+            console.log('Socket notification error:', e);
+        }
+
+        return NextResponse.json({ message: "User kicked successfully", success: true });
 
     } catch (error) {
         console.error("SERVER_KICK_POST", error);

@@ -99,14 +99,19 @@ export default function ChatSidebar() {
     const fetchConversations = async () => {
         try {
             const res = await fetch('/api/chats');
-            if (res.ok) {
-                const data = await res.json();
-                // Filter only direct messages (1-on-1)
-                const directs = data.filter((c: Conversation) => c.type === 'direct');
-                setConversations(directs.sort((a: Conversation, b: Conversation) =>
-                    new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
-                ));
+            if (!res.ok) {
+                if (res.status === 401) {
+                    console.log("User not authenticated");
+                    return;
+                }
+                throw new Error(`Failed to fetch: ${res.status}`);
             }
+            const data = await res.json();
+            // Filter only direct messages (1-on-1)
+            const directs = data.filter((c: Conversation) => c.type === 'direct');
+            setConversations(directs.sort((a: Conversation, b: Conversation) =>
+                new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+            ));
         } catch (error) {
             console.error("Error fetching conversations:", error);
         }
@@ -116,12 +121,19 @@ export default function ChatSidebar() {
         setLoading(true);
         try {
             const res = await fetch(`/api/users/search?q=${query}`);
-            if (res.ok) {
-                const data = await res.json();
-                setSearchResults(data);
+            if (!res.ok) {
+                if (res.status === 401) {
+                    console.log("User not authenticated");
+                    setSearchResults([]);
+                    return;
+                }
+                throw new Error(`Search failed: ${res.status}`);
             }
+            const data = await res.json();
+            setSearchResults(data);
         } catch (error) {
             console.error("Search error:", error);
+            setSearchResults([]);
         } finally {
             setLoading(false);
         }
@@ -135,41 +147,33 @@ export default function ChatSidebar() {
                 body: JSON.stringify({ memberId: userId })
             });
 
-            if (res.ok) {
-                const conversation = await res.json();
-                setSearchQuery("");
-                setShowSearch(false);
-                setSearchResults([]);
-                router.push(`/messages/${conversation._id}`);
-                fetchConversations();
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({ error: 'Failed to create chat' }));
+                console.error("Error response:", errorData);
+                alert(errorData.error || 'Failed to start chat. Please try again.');
+                return;
             }
+
+            const conversation = await res.json();
+            setSearchQuery("");
+            setShowSearch(false);
+            setSearchResults([]);
+            router.push(`/messages/${conversation._id}`);
+            fetchConversations();
         } catch (error) {
             console.error("Error starting chat:", error);
+            alert('Failed to start chat. Please check your connection and try again.');
         }
     };
 
     const getOtherUser = (conversation: Conversation) => {
         if (conversation.type === 'direct') {
-            return session?.user?.id === conversation.memberOneId?._id
-                ? conversation.memberTwoId
+            return session?.user?.id === conversation.memberOneId?._id 
+                ? conversation.memberTwoId 
                 : conversation.memberOneId;
         }
         return null;
-    };
-
-    const handleFriendAction = async (targetId: string, action: 'send' | 'accept' | 'reject' | 'cancel') => {
-        try {
-            await fetch("/api/friends/request", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ targetUserId: targetId, action })
-            });
-            // Re-search to update status
-            performSearch(searchQuery);
-        } catch (e) { console.error(e); }
-    };
-
-    return (
+    };    return (
         <div className="flex flex-col h-full bg-background border-r border-border">
             {/* Header */}
             <div className="p-4 border-b border-border">
@@ -232,24 +236,13 @@ export default function ChatSidebar() {
                                 </div>
 
                                 <div className="flex-shrink-0 ml-2">
-                                    {user.friendshipStatus === 'friend' && (
-                                        <button onClick={() => startDirectChat(user._id)} className="p-2 bg-primary/10 text-primary rounded-full hover:bg-primary/20" title="Message">
-                                            <MessageSquare size={16} />
-                                        </button>
-                                    )}
-                                    {user.friendshipStatus === 'none' && (
-                                        <button onClick={() => handleFriendAction(user._id, 'send')} className="p-2 bg-secondary text-foreground rounded-full hover:bg-secondary/80" title="Add Friend">
-                                            <Plus size={16} />
-                                        </button>
-                                    )}
-                                    {user.friendshipStatus === 'sent' && (
-                                        <span className="text-xs text-muted-foreground px-2 py-1 bg-secondary rounded-full">Sent</span>
-                                    )}
-                                    {user.friendshipStatus === 'received' && (
-                                        <button onClick={() => router.push('/friends')} className="text-xs text-primary px-2 py-1 bg-primary/10 rounded-full hover:bg-primary/20">
-                                            Respond
-                                        </button>
-                                    )}
+                                    <button 
+                                        onClick={() => startDirectChat(user._id)} 
+                                        className="p-2 bg-primary text-primary-foreground rounded-full hover:bg-primary/90" 
+                                        title="Message"
+                                    >
+                                        <MessageSquare size={16} />
+                                    </button>
                                 </div>
                             </div>
                         ))}

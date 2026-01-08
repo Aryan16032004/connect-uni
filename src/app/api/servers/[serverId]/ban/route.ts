@@ -37,18 +37,51 @@ export async function POST(req: Request, props: { params: Promise<{ serverId: st
             return NextResponse.json({ message: "Cannot ban this user" }, { status: 400 });
         }
 
-        // Create Ban Record
+        // Check if already banned
+        const existingBan = await ServerBan.findOne({ serverId, userId });
+        if (existingBan) {
+            return NextResponse.json({ message: "User is already banned" }, { status: 400 });
+        }
+
+        // Create Ban Record (prevents rejoining)
         await ServerBan.create({
             serverId,
             userId,
             bannedById: session.user.id,
-            reason
+            reason: reason || "No reason provided"
         });
 
         // Remove from members
         await ServerMembers.findOneAndDelete({ serverId, userId });
 
-        return NextResponse.json({ message: "User banned" });
+        // Emit socket event to notify the banned user
+        try {
+            const { getIoInstance, getOnlineUsers } = await import('@/lib/socket');
+            const io = getIoInstance();
+            const onlineUsers = getOnlineUsers();
+            
+            if (io) {
+                // Notify the banned user
+                if (onlineUsers) {
+                    const targetSocketId = onlineUsers.get(userId);
+                    if (targetSocketId) {
+                        io.to(targetSocketId).emit('user:banned', { 
+                            userId, 
+                            serverId,
+                            serverName: server.name 
+                        });
+                        console.log(`Ban notification sent to user ${userId}`);
+                    }
+                }
+                
+                // Notify all server members about the ban (for member list updates)
+                io.emit('member:banned', { serverId, userId });
+            }
+        } catch (e) {
+            console.log('Socket notification error:', e);
+        }
+
+        return NextResponse.json({ message: "User banned successfully", success: true });
 
     } catch (error) {
         console.error("SERVER_BAN_POST", error);

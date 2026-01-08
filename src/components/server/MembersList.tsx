@@ -2,14 +2,59 @@
 
 import { useState, useEffect } from "react";
 import { User, Shield, UserMinus, Ban, Crown, MessageSquare } from "lucide-react";
+import { useSocket } from "@/components/providers/SocketProvider";
 
 export default function MembersList({ serverId, canManage, isOwner }: { serverId: string, canManage: boolean, isOwner: boolean }) {
     const [members, setMembers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const { socket } = useSocket();
 
     useEffect(() => {
         fetchMembers();
     }, [serverId]);
+
+    // Listen for real-time member changes
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleMemberJoin = (data: { serverId: string }) => {
+            if (data.serverId === serverId) {
+                fetchMembers();
+            }
+        };
+
+        const handleMemberLeave = (data: { serverId: string }) => {
+            if (data.serverId === serverId) {
+                fetchMembers();
+            }
+        };
+
+        const handleMemberKicked = (data: { serverId: string, userId: string }) => {
+            if (data.serverId === serverId) {
+                // Optimistically remove the member from the list
+                setMembers(prev => prev.filter(m => m.userId?._id !== data.userId));
+            }
+        };
+
+        const handleMemberBanned = (data: { serverId: string, userId: string }) => {
+            if (data.serverId === serverId) {
+                // Optimistically remove the member from the list
+                setMembers(prev => prev.filter(m => m.userId?._id !== data.userId));
+            }
+        };
+
+        socket.on("member:joined", handleMemberJoin);
+        socket.on("member:left", handleMemberLeave);
+        socket.on("member:kicked", handleMemberKicked);
+        socket.on("member:banned", handleMemberBanned);
+
+        return () => {
+            socket.off("member:joined", handleMemberJoin);
+            socket.off("member:left", handleMemberLeave);
+            socket.off("member:kicked", handleMemberKicked);
+            socket.off("member:banned", handleMemberBanned);
+        };
+    }, [socket, serverId]);
 
     const fetchMembers = async () => {
         try {
@@ -39,34 +84,52 @@ export default function MembersList({ serverId, canManage, isOwner }: { serverId
     };
 
     const handleKick = async (userId: string) => {
-        if (!confirm("Kick this user?")) return;
+        if (!confirm("Kick this user? They will be able to rejoin the server.")) return;
         try {
             const res = await fetch(`/api/servers/${serverId}/kick`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ userId }),
             });
-            if (res.ok) fetchMembers();
-            else alert("Failed to kick");
-        } catch (e) { console.error(e); }
+            if (res.ok) {
+                const data = await res.json();
+                alert(data.message || "User kicked successfully");
+                // fetchMembers() removed - socket will handle the update
+            } else {
+                const errorData = await res.json().catch(() => ({ message: 'Failed to kick user' }));
+                alert(errorData.message || "Failed to kick user");
+            }
+        } catch (e) { 
+            console.error(e);
+            alert("Network error. Please try again.");
+        }
     };
 
     const handleBan = async (userId: string) => {
-        const reason = prompt("Ban reason?");
-        if (!reason) return;
+        const reason = prompt("Ban reason? (This will permanently prevent the user from rejoining)");
+        if (reason === null) return; // User cancelled
         try {
             const res = await fetch(`/api/servers/${serverId}/ban`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ userId, reason }),
+                body: JSON.stringify({ userId, reason: reason || "No reason provided" }),
             });
-            if (res.ok) fetchMembers();
-            else alert("Failed to ban");
-        } catch (e) { console.error(e); }
+            if (res.ok) {
+                const data = await res.json();
+                alert(data.message || "User banned successfully");
+                // fetchMembers() removed - socket will handle the update
+            } else {
+                const errorData = await res.json().catch(() => ({ message: 'Failed to ban user' }));
+                alert(errorData.message || "Failed to ban user");
+            }
+        } catch (e) { 
+            console.error(e);
+            alert("Network error. Please try again.");
+        }
     };
 
     const handleTransfer = async (userId: string) => {
-        if (!confirm("Are you sure? requesting to transfer ownership to this user. You will lose owner privileges.")) return;
+        if (!confirm("Are you sure? Transferring ownership to this user will remove your owner privileges permanently.")) return;
         try {
             const res = await fetch(`/api/servers/${serverId}/transfer`, {
                 method: "POST",
@@ -74,11 +137,16 @@ export default function MembersList({ serverId, canManage, isOwner }: { serverId
                 body: JSON.stringify({ newOwnerId: userId }),
             });
             if (res.ok) {
-                alert("Ownership transferred. Reloading...");
+                alert("Ownership transferred successfully. Reloading...");
                 window.location.reload();
+            } else {
+                const errorData = await res.json().catch(() => ({ message: 'Failed to transfer ownership' }));
+                alert(errorData.message || "Failed to transfer ownership");
             }
-            else alert("Failed to transfer");
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error(e);
+            alert("Network error. Please try again.");
+        }
     };
 
     if (loading) return <div className="text-center p-4">Loading members...</div>;

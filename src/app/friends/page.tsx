@@ -69,34 +69,6 @@ export default function FriendsPage() {
         } catch (e) { console.error(e); }
     };
 
-    const handleFriendAction = async (targetId: string, action: 'send' | 'accept' | 'reject' | 'cancel') => {
-        try {
-            const res = await fetch("/api/friends/request", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ targetUserId: targetId, action })
-            });
-
-            if (res.ok) {
-                // Refresh lists
-                fetchFriends();
-                if (activeTab === 'search') handleSearch();
-
-                // EMIT SOCKET EVENTS
-                if (socket) {
-                    if (action === 'send') {
-                        socket.emit("friend:request-sent", { to: targetId });
-                    } else {
-                        socket.emit("friend:respond", { to: targetId, action });
-                    }
-                }
-            } else {
-                const data = await res.json();
-                alert(data.error || "Action failed");
-            }
-        } catch (e) { console.error(e); }
-    };
-
     const startChat = async (userId: string) => {
         try {
             const res = await fetch("/api/chats", {
@@ -134,56 +106,30 @@ export default function FriendsPage() {
                             </div>
 
                             <div className="flex gap-2">
-                                {type === 'friend' && (
-                                    <button onClick={() => startChat(user._id)} className="p-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg flex items-center gap-2 transition-colors">
+                                {(type === 'friend' || type === 'search') && (
+                                    <button 
+                                        onClick={() => startChat(user._id)} 
+                                        className="p-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg flex items-center gap-2 transition-colors"
+                                    >
                                         <MessageSquare size={18} /> <span className="hidden sm:inline">Message</span>
                                     </button>
                                 )}
 
-                                {type === 'search' && (
-                                    <>
-                                        {user.friendshipStatus === 'friend' && (
-                                            <button onClick={() => startChat(user._id)} className="p-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg flex items-center gap-2">
-                                                <MessageSquare size={18} /> Message
-                                            </button>
-                                        )}
-                                        {user.friendshipStatus === 'none' && (
-                                            <button onClick={() => handleFriendAction(user._id, 'send')} className="p-2 bg-secondary hover:bg-secondary/80 rounded-lg flex items-center gap-2">
-                                                <UserPlus size={18} /> Add
-                                            </button>
-                                        )}
-                                        {user.friendshipStatus === 'sent' && (
-                                            <button onClick={() => handleFriendAction(user._id, 'cancel')} className="p-2 bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20 rounded-lg flex items-center gap-2">
-                                                <Clock size={18} /> Sent
-                                            </button>
-                                        )}
-                                        {user.friendshipStatus === 'received' && (
-                                            <div className="flex gap-2">
-                                                <button onClick={() => handleFriendAction(user._id, 'accept')} className="p-2 bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded-lg">
-                                                    <Check size={18} />
-                                                </button>
-                                                <button onClick={() => handleFriendAction(user._id, 'reject')} className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg">
-                                                    <X size={18} />
-                                                </button>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-
                                 {type === 'incoming' && (
-                                    <>
-                                        <button onClick={() => handleFriendAction(user._id, 'accept')} className="px-3 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
-                                            Accept
-                                        </button>
-                                        <button onClick={() => handleFriendAction(user._id, 'reject')} className="px-3 py-1.5 bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-colors">
-                                            Decline
-                                        </button>
-                                    </>
+                                    <button 
+                                        onClick={() => startChat(user._id)} 
+                                        className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                                    >
+                                        Message
+                                    </button>
                                 )}
 
                                 {type === 'outgoing' && (
-                                    <button onClick={() => handleFriendAction(user._id, 'cancel')} className="px-3 py-1.5 bg-secondary text-foreground hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors">
-                                        Cancel
+                                    <button 
+                                        onClick={() => startChat(user._id)} 
+                                        className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                                    >
+                                        Message
                                     </button>
                                 )}
                             </div>
