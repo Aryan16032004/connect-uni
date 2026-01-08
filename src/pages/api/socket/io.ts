@@ -4,6 +4,10 @@ import { Server as ServerIO } from "socket.io";
 import { NextApiResponse } from "next";
 import { setIoInstance, setOnlineUsers } from "@/lib/socket";
 
+// Track WebRTC signaling participants per room
+const roomParticipants = new Map<string, Set<string>>();
+const socketUserMap = new Map<string, string>();
+
 export type NextApiResponseServerIo = NextApiResponse & {
     socket: any & {
         server: NetServer & {
@@ -40,6 +44,7 @@ const ioHandler = (req: NextApiRequest, res: NextApiResponseServerIo) => {
 
             socket.on("register-user", (userId: string) => {
                 onlineUsers.set(userId, socket.id);
+                socketUserMap.set(socket.id, userId);
                 // Broadcast to all clients that this user is online
                 io.emit("user:online", userId);
 
@@ -52,7 +57,53 @@ const ioHandler = (req: NextApiRequest, res: NextApiResponseServerIo) => {
 
             socket.on("join-room", (roomId: string) => {
                 socket.join(roomId);
-                console.log(`SERVER: Socket ${socket.id} joined room ${roomId}`);
+                console.log("[SIGNAL] join-room", { socketId: socket.id, roomId });
+            });
+
+            socket.on("webrtc:join", ({ roomId, userId }: { roomId: string; userId: string }) => {
+                socket.join(roomId);
+                socketUserMap.set(socket.id, userId);
+
+                const peers = roomParticipants.get(roomId) || new Set<string>();
+                const existingPeers = Array.from(peers).filter((id) => id !== socket.id);
+
+                peers.add(socket.id);
+                roomParticipants.set(roomId, peers);
+
+                socket.emit("webrtc:peers", {
+                    peers: existingPeers.map((id) => ({ socketId: id, userId: socketUserMap.get(id) })),
+                });
+
+                socket.to(roomId).emit("webrtc:peer-joined", { socketId: socket.id, userId });
+                console.log("[SIGNAL] webrtc:join", { roomId, socketId: socket.id, peersCount: peers.size });
+            });
+
+            socket.on(
+                "webrtc:signal",
+                ({ to, type, description, candidate, userId }: { to: string; type: string; description?: any; candidate?: any; userId?: string }) => {
+                    io.to(to).emit("webrtc:signal", {
+                        from: socket.id,
+                        type,
+                        description,
+                        candidate,
+                        userId,
+                    });
+                    console.log("[SIGNAL] webrtc:signal", { from: socket.id, to, type, hasDesc: !!description, hasCand: !!candidate });
+                }
+            );
+
+            socket.on("webrtc:leave", ({ roomId }: { roomId: string }) => {
+                const peers = roomParticipants.get(roomId);
+                if (peers) {
+                    peers.delete(socket.id);
+                    socket.to(roomId).emit("webrtc:peer-left", { socketId: socket.id });
+                    if (peers.size === 0) {
+                        roomParticipants.delete(roomId);
+                    }
+                }
+                socket.leave(roomId);
+                socketUserMap.delete(socket.id);
+                console.log("[SIGNAL] webrtc:leave", { roomId, socketId: socket.id, peersRemaining: peers?.size || 0 });
             });
 
             socket.on("send-message", (message: any) => {
@@ -91,6 +142,16 @@ const ioHandler = (req: NextApiRequest, res: NextApiResponseServerIo) => {
 
             socket.on("disconnect", () => {
                 console.log("SERVER: Socket Disconnected:", socket.id);
+                // Clean up WebRTC rooms
+                for (const [roomId, peers] of roomParticipants.entries()) {
+                    if (peers.has(socket.id)) {
+                        peers.delete(socket.id);
+                        socket.to(roomId).emit("webrtc:peer-left", { socketId: socket.id });
+                        if (peers.size === 0) {
+                            roomParticipants.delete(roomId);
+                        }
+                    }
+                }
                 // Find and remove the user who disconnected
                 for (const [userId, socketId] of onlineUsers.entries()) {
                     if (socketId === socket.id) {
@@ -100,6 +161,7 @@ const ioHandler = (req: NextApiRequest, res: NextApiResponseServerIo) => {
                         break;
                     }
                 }
+                socketUserMap.delete(socket.id);
             });
         });
 
