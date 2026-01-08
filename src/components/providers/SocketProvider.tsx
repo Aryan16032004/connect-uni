@@ -29,8 +29,19 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     const { data: session } = useSession();
 
     useEffect(() => {
-        // Get the URL dynamically - use current origin if NEXT_PUBLIC_SITE_URL is not set
-        const socketUrl = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+        // Get the URL dynamically. 
+        // If on localhost, use undefined (defaults to current origin) to ensure we connect to local server.
+        // Otherwise, use site URL or origin.
+        const isLocal = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+        const socketUrl = isLocal
+            ? undefined
+            : (process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : ''));
+
+        // Initialize the socket server via a fetch call to the API route
+        const socketInit = async () => {
+            await fetch("/api/socket/io");
+        };
+        socketInit();
 
         const socketInstance = new (ClientIO as any)(socketUrl, {
             path: "/api/socket/io",

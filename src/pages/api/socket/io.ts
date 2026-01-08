@@ -75,12 +75,14 @@ const ioHandler = (req: NextApiRequest, res: NextApiResponseServerIo) => {
                 });
 
                 socket.to(roomId).emit("webrtc:peer-joined", { socketId: socket.id, userId });
-                console.log("[SIGNAL] webrtc:join", { roomId, socketId: socket.id, peersCount: peers.size });
+                console.log(`[SIGNAL] webrtc:join roomId=${roomId} socket=${socket.id}. Total peers in room: ${peers.size}`);
+                console.log(`[SIGNAL] Current Room Participants:`, Array.from(roomParticipants.entries()).map(([k, v]) => `${k}: [${Array.from(v).join(', ')}]`));
             });
 
             socket.on(
                 "webrtc:signal",
                 ({ to, type, description, candidate, userId }: { to: string; type: string; description?: any; candidate?: any; userId?: string }) => {
+                    const targetRoom = Array.from(roomParticipants.entries()).find(([_, peers]) => peers.has(to))?.[0];
                     io.to(to).emit("webrtc:signal", {
                         from: socket.id,
                         type,
@@ -88,7 +90,7 @@ const ioHandler = (req: NextApiRequest, res: NextApiResponseServerIo) => {
                         candidate,
                         userId,
                     });
-                    console.log("[SIGNAL] webrtc:signal", { from: socket.id, to, type, hasDesc: !!description, hasCand: !!candidate });
+                    console.log(`[SIGNAL] webrtc:signal from=${socket.id} to=${to} type=${type} room=${targetRoom}`);
                 }
             );
 
@@ -103,7 +105,7 @@ const ioHandler = (req: NextApiRequest, res: NextApiResponseServerIo) => {
                 }
                 socket.leave(roomId);
                 socketUserMap.delete(socket.id);
-                console.log("[SIGNAL] webrtc:leave", { roomId, socketId: socket.id, peersRemaining: peers?.size || 0 });
+                console.log(`[SIGNAL] webrtc:leave roomId=${roomId} socket=${socket.id}. Remaining peers: ${peers?.size || 0}`);
             });
 
             socket.on("send-message", (message: any) => {
