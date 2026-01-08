@@ -79,8 +79,74 @@ export default function FriendsPage() {
             if (res.ok) {
                 const conv = await res.json();
                 router.push(`/messages/${conv._id}`);
+            } else {
+                const error = await res.json();
+                alert(error.error || 'Failed to start chat');
             }
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error(e);
+            alert('Failed to start chat');
+        }
+    };
+
+    const sendFriendRequest = async (userId: string) => {
+        try {
+            const res = await fetch('/api/friends/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ receiverId: userId })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert('Friend request sent!');
+                handleSearch(); // Refresh search results
+                fetchFriends(); // Refresh requests
+            } else {
+                alert(data.error || 'Failed to send request');
+            }
+        } catch (e) { 
+            console.error(e);
+            alert('Failed to send request');
+        }
+    };
+
+    const acceptRequest = async (userId: string) => {
+        try {
+            const res = await fetch('/api/friends/accept', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ senderId: userId })
+            });
+            if (res.ok) {
+                alert('Friend request accepted!');
+                fetchFriends();
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Failed to accept request');
+            }
+        } catch (e) { 
+            console.error(e);
+            alert('Failed to accept request');
+        }
+    };
+
+    const rejectRequest = async (userId: string) => {
+        try {
+            const res = await fetch('/api/friends/reject', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ senderId: userId })
+            });
+            if (res.ok) {
+                fetchFriends();
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Failed to reject request');
+            }
+        } catch (e) { 
+            console.error(e);
+            alert('Failed to reject request');
+        }
     };
 
     const renderUserList = (users: any[], type: 'friend' | 'search' | 'incoming' | 'outgoing') => {
@@ -106,7 +172,7 @@ export default function FriendsPage() {
                             </div>
 
                             <div className="flex gap-2">
-                                {(type === 'friend' || type === 'search') && (
+                                {type === 'friend' && (
                                     <button 
                                         onClick={() => startChat(user._id)} 
                                         className="p-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg flex items-center gap-2 transition-colors"
@@ -115,21 +181,63 @@ export default function FriendsPage() {
                                     </button>
                                 )}
 
+                                {type === 'search' && (
+                                    <>
+                                        {user.friendshipStatus === 'friend' ? (
+                                            <button 
+                                                onClick={() => startChat(user._id)} 
+                                                className="p-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg flex items-center gap-2 transition-colors"
+                                            >
+                                                <MessageSquare size={18} /> <span className="hidden sm:inline">Message</span>
+                                            </button>
+                                        ) : user.friendshipStatus === 'sent' ? (
+                                            <button 
+                                                disabled
+                                                className="px-4 py-2 bg-muted text-muted-foreground rounded-lg cursor-not-allowed"
+                                            >
+                                                <Clock size={16} className="inline mr-1" /> Pending
+                                            </button>
+                                        ) : user.friendshipStatus === 'received' ? (
+                                            <button 
+                                                onClick={() => acceptRequest(user._id)} 
+                                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                                            >
+                                                <Check size={16} className="inline mr-1" /> Accept
+                                            </button>
+                                        ) : (
+                                            <button 
+                                                onClick={() => sendFriendRequest(user._id)} 
+                                                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-1"
+                                            >
+                                                <UserPlus size={16} /> Add Friend
+                                            </button>
+                                        )}
+                                    </>
+                                )}
+
                                 {type === 'incoming' && (
-                                    <button 
-                                        onClick={() => startChat(user._id)} 
-                                        className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-                                    >
-                                        Message
-                                    </button>
+                                    <>
+                                        <button 
+                                            onClick={() => acceptRequest(user._id)} 
+                                            className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1"
+                                        >
+                                            <Check size={16} /> Accept
+                                        </button>
+                                        <button 
+                                            onClick={() => rejectRequest(user._id)} 
+                                            className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
+                                        >
+                                            <X size={16} /> Reject
+                                        </button>
+                                    </>
                                 )}
 
                                 {type === 'outgoing' && (
                                     <button 
-                                        onClick={() => startChat(user._id)} 
-                                        className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                                        disabled
+                                        className="px-4 py-2 bg-muted text-muted-foreground rounded-lg cursor-not-allowed flex items-center gap-1"
                                     >
-                                        Message
+                                        <Clock size={16} /> Pending
                                     </button>
                                 )}
                             </div>

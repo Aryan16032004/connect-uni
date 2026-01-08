@@ -17,6 +17,12 @@ export async function POST(req: Request) {
 
         await dbConnect();
 
+        // Check if users are friends before allowing chat
+        const currentUser = await User.findById(session.user.id).select('friends');
+        if (!currentUser?.friends?.includes(remoteUserId)) {
+            return NextResponse.json({ error: "You can only message friends" }, { status: 403 });
+        }
+
         // Ensure consistent ordering to prevent duplicate conversations (A-B vs B-A)
         // Actually, let's just query for both combinations OR enforce order. 
         // Enforcing order is cleaner for unique index.

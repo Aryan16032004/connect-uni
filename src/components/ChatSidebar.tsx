@@ -27,6 +27,18 @@ interface SearchResult {
     friendshipStatus: 'none' | 'friend' | 'sent' | 'received';
 }
 
+interface FriendRequest {
+    _id: string;
+    user: {
+        _id: string;
+        name: string;
+        username: string;
+        image?: string;
+    };
+    type: 'sent' | 'received';
+    createdAt: Date;
+}
+
 export default function ChatSidebar() {
     const { data: session } = useSession();
     const { socket, onlineUsers } = useSocket();
@@ -38,13 +50,16 @@ export default function ChatSidebar() {
     const router = useRouter();
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+    const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [showSearch, setShowSearch] = useState(false);
+    const [showRequests, setShowRequests] = useState(false);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (session?.user?.id) {
             fetchConversations();
+            fetchFriendRequests();
         }
     }, [session?.user?.id]);
 
@@ -73,6 +88,7 @@ export default function ChatSidebar() {
         // Listen for friend updates to refresh stats
         const handleFriendUpdate = () => {
             fetchConversations();
+            fetchFriendRequests();
             if (searchQuery) performSearch(searchQuery);
         };
         socket.on("friend:update", handleFriendUpdate);
@@ -82,6 +98,28 @@ export default function ChatSidebar() {
             socket.off("friend:update", handleFriendUpdate);
         };
     }, [socket, searchQuery]);
+
+    const performSearch = async (query: string) => {
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/users/search?q=${query}`);
+            if (!res.ok) {
+                if (res.status === 401) {
+                    console.log("User not authenticated");
+                    setSearchResults([]);
+                    return;
+                }
+                throw new Error(`Search failed: ${res.status}`);
+            }
+            const data = await res.json();
+            setSearchResults(data);
+        } catch (error) {
+            console.error("Search error:", error);
+            setSearchResults([]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // Debounce Search
     useEffect(() => {
@@ -117,29 +155,96 @@ export default function ChatSidebar() {
         }
     };
 
-    const performSearch = async (query: string) => {
-        setLoading(true);
+    const fetchFriendRequests = async () => {
         try {
-            const res = await fetch(`/api/users/search?q=${query}`);
-            if (!res.ok) {
-                if (res.status === 401) {
-                    console.log("User not authenticated");
-                    setSearchResults([]);
-                    return;
-                }
-                throw new Error(`Search failed: ${res.status}`);
-            }
+            const res = await fetch('/api/friends/requests');
+            if (!res.ok) return;
             const data = await res.json();
-            setSearchResults(data);
+            setFriendRequests(data.received || []);
         } catch (error) {
-            console.error("Search error:", error);
-            setSearchResults([]);
-        } finally {
-            setLoading(false);
+            console.error("Error fetching friend requests:", error);
         }
     };
 
-    const startDirectChat = async (userId: string) => {
+    const sendFriendRequest = async (userId: string) => {
+        try {
+            const res = await fetch('/api/friends/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ receiverId: userId })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                alert(data.error || 'Failed to send friend request');
+                return;
+            }
+
+            alert('Friend request sent!');
+            // Refresh search results to update status
+            fetchFriendRequests();
+            performSearch(searchQuery);
+        } catch (error) {
+            console.error("Error sending friend request:", error);
+            alert('Failed to send friend request');
+        }
+    };
+
+    const acceptFriendRequest = async (userId: string) => {
+        try {
+            const res = await fetch('/api/friends/accept', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ senderId: userId })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                alert(data.error || 'Failed to accept friend request');
+                return;
+            }
+
+            alert('Friend request accepted!');
+            fetchFriendRequests();
+            performSearch(searchQuery);
+        } catch (error) {
+            console.error("Error accepting friend request:", error);
+            alert('Failed to accept friend request');
+        }
+    };
+
+    const rejectFriendRequest = async (userId: string) => {
+        try {
+            const res = await fetch('/api/friends/reject', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ senderId: userId })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                alert(data.error || 'Failed to reject friend request');
+                return;
+            }
+
+            fetchFriendRequests();
+            performSearch(searchQuery);
+        } catch (error) {
+            console.error("Error rejecting friend request:", error);
+            alert('Failed to reject friend request');
+        }
+    };
+
+    const startDirectChat = async (userId: string, friendshipStatus: string) => {
+        // Check if they are friends before allowing chat
+        if (friendshipStatus !== 'friend') {
+            alert('You can only message friends. Send a friend request first!');
+            return;
+        }
+
         try {
             const res = await fetch('/api/chats', {
                 method: 'POST',
@@ -184,7 +289,25 @@ export default function ChatSidebar() {
                     </h2>
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={() => setShowSearch(!showSearch)}
+                            onClick={() => {
+                                setShowRequests(!showRequests);
+                                setShowSearch(false);
+                            }}
+                            className="relative p-2 hover:bg-muted rounded-lg transition-colors"
+                            title="Friend Requests"
+                        >
+                            <Users size={20} />
+                            {friendRequests.length > 0 && (
+                                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                    {friendRequests.length}
+                                </span>
+                            )}
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowSearch(!showSearch);
+                                setShowRequests(false);
+                            }}
                             className="p-2 hover:bg-muted rounded-lg transition-colors"
                             title="Search users"
                         >
@@ -192,6 +315,46 @@ export default function ChatSidebar() {
                         </button>
                     </div>
                 </div>
+
+                {/* Friend Requests */}
+                {showRequests && friendRequests.length > 0 && (
+                    <div className="mb-4 p-3 bg-muted rounded-lg animate-in fade-in slide-in-from-top-2">
+                        <h3 className="text-sm font-semibold mb-2">Friend Requests</h3>
+                        <div className="space-y-2">
+                            {friendRequests.map((request) => (
+                                <div key={request._id} className="flex items-center justify-between p-2 bg-background rounded-lg">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold flex-shrink-0">
+                                            {request.user.image ? (
+                                                <img src={request.user.image} alt={request.user.name} className="w-full h-full rounded-full object-cover" />
+                                            ) : (
+                                                request.user.name[0]
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium truncate">{request.user.name}</p>
+                                            <p className="text-xs text-muted-foreground truncate">@{request.user.username}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-1 flex-shrink-0">
+                                        <button
+                                            onClick={() => acceptFriendRequest(request.user._id)}
+                                            className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                                        >
+                                            Accept
+                                        </button>
+                                        <button
+                                            onClick={() => rejectFriendRequest(request.user._id)}
+                                            className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                                        >
+                                            Reject
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Search Box */}
                 {showSearch && (
@@ -235,14 +398,40 @@ export default function ChatSidebar() {
                                     </div>
                                 </div>
 
-                                <div className="flex-shrink-0 ml-2">
-                                    <button 
-                                        onClick={() => startDirectChat(user._id)} 
-                                        className="p-2 bg-primary text-primary-foreground rounded-full hover:bg-primary/90" 
-                                        title="Message"
-                                    >
-                                        <MessageSquare size={16} />
-                                    </button>
+                                <div className="flex-shrink-0 ml-2 flex gap-2">
+                                    {user.friendshipStatus === 'friend' ? (
+                                        <button 
+                                            onClick={() => startDirectChat(user._id, user.friendshipStatus)} 
+                                            className="p-2 bg-primary text-primary-foreground rounded-full hover:bg-primary/90" 
+                                            title="Message"
+                                        >
+                                            <MessageSquare size={16} />
+                                        </button>
+                                    ) : user.friendshipStatus === 'sent' ? (
+                                        <button 
+                                            disabled
+                                            className="px-3 py-1 bg-muted text-muted-foreground rounded-full text-xs cursor-not-allowed" 
+                                            title="Request Sent"
+                                        >
+                                            Pending
+                                        </button>
+                                    ) : user.friendshipStatus === 'received' ? (
+                                        <button 
+                                            onClick={() => acceptFriendRequest(user._id)} 
+                                            className="px-3 py-1 bg-green-600 text-white rounded-full hover:bg-green-700 text-xs" 
+                                            title="Accept Friend Request"
+                                        >
+                                            Accept
+                                        </button>
+                                    ) : (
+                                        <button 
+                                            onClick={() => sendFriendRequest(user._id)} 
+                                            className="px-3 py-1 bg-primary text-primary-foreground rounded-full hover:bg-primary/90 text-xs" 
+                                            title="Add Friend"
+                                        >
+                                            Add Friend
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         ))}

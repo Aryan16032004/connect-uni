@@ -73,6 +73,35 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Input and Form Styling */
+input, textarea, select {
+  color: var(--foreground) !important;
+  background-color: var(--input) !important;
+  border-color: var(--border) !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--muted-foreground) !important;
+  opacity: 0.7 !important;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1) !important;
+}
+
+/* Ensure text is visible in inputs during dark mode */
+:root input, :root textarea, :root select {
+  color: #f8fafc !important;
+  caret-color: #f8fafc !important;
+}
+
+html.light input, html.light textarea, html.light select {
+  color: #1e293b !important;
+  caret-color: #1e293b !important;
+}
+
 /* Glassmorphism Utilities */
 .glass {
   background: rgba(30, 41, 59, 0.7);

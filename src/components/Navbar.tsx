@@ -20,6 +20,7 @@ export function Navbar() {
     if (pathname?.startsWith("/auth")) return null;
 
     const navItems = [
+        { name: "Announcements", href: "/announcements" },
         { name: "Surplus Store", href: "/store" },
         { name: "Events", href: "/events" },
         { name: "Hoodmaps", href: "/hoodmaps" },
@@ -74,6 +75,14 @@ export function Navbar() {
                         </button>
                         {session ? (
                             <div className="flex items-center gap-4">
+                                {session.user?.role === 'superadmin' && (
+                                    <Link
+                                        href="/superadmin"
+                                        className="px-3 py-1.5 bg-red-500/20 text-red-500 rounded-lg text-xs font-bold hover:bg-red-500/30 transition-colors"
+                                    >
+                                        ADMIN
+                                    </Link>
+                                )}
                                 <Link
                                     href="/profile"
                                     className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"

@@ -36,10 +36,10 @@ export async function GET(req: Request) {
         const results = users.map((user: any) => {
             let status = 'none'; // 'none', 'friend', 'sent', 'received'
 
-            if (currentUser.friends.includes(user._id)) {
+            if (currentUser?.friends?.includes(user._id)) {
                 status = 'friend';
-            } else {
-                const req = currentUser.friendRequests.find((r: any) => r.user.toString() === user._id.toString());
+            } else if (currentUser?.friendRequests) {
+                const req = currentUser.friendRequests.find((r: any) => r?.user?.toString() === user._id.toString());
                 if (req) {
                     status = req.type;
                 }
