@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Lock, Mail, User } from "lucide-react";
+import { Lock, Mail, User, Eye, EyeOff } from "lucide-react";
 
 export default function SignUp() {
     const router = useRouter();
@@ -15,6 +15,7 @@ export default function SignUp() {
     });
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -116,13 +117,24 @@ export default function SignUp() {
                         <div className="relative">
                             <Lock className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
                             <input
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                                 value={formData.password}
                                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                className="w-full pl-10 pr-4 py-2 rounded-lg bg-input border border-border text-foreground focus:border-secondary focus:ring-1 focus:ring-secondary outline-none transition-all placeholder:text-muted-foreground"
+                                className="w-full pl-10 pr-10 py-2 rounded-lg bg-input border border-border text-foreground focus:border-secondary focus:ring-1 focus:ring-secondary outline-none transition-all placeholder:text-muted-foreground"
                                 placeholder="••••••••"
                                 required
                             />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                            >
+                                {showPassword ? (
+                                    <EyeOff className="h-5 w-5" />
+                                ) : (
+                                    <Eye className="h-5 w-5" />
+                                )}
+                            </button>
                         </div>
                     </div>
 
